@@ -19,6 +19,8 @@ namespace pxsim.flashlog {
     const logEnd = 121852;
 
     let lastRunId: string;
+    let logStorage: string[] =[]; //store rows of logged data 
+
     function init() {
         const b = board();
         if (!b) return;
@@ -32,6 +34,8 @@ namespace pxsim.flashlog {
     function commitRow(data: string, type: "headers" | "row" | "plaintext") {
         if (!runtime) return;
         data += "\n";
+
+        logStorage.push(data); // store new row
 
         /** edge 18 does not support text encoder, so fall back to length **/
         logSize += typeof TextEncoder !== "undefined" ? (new TextEncoder().encode(data)).length : data.length;
@@ -146,6 +150,7 @@ namespace pxsim.flashlog {
 
     function erase() {
         headers = []
+        logStorage = [];
         logSize = 0;
         committedCols = 0;
         currentRow = undefined;
@@ -163,11 +168,49 @@ namespace pxsim.flashlog {
         mirrorToSerial = !!enabled;
     }
 
+    
+    /**
+    * Emulating implementation found in 
+    * https://github.com/lancaster-university/codal-microbit-v2/blob/master/source/MicroBitLog.cpp#L1147
+    * Number of rows currently used by the datalogger, start counting at fromRowIndex
+    * Treats the header as the first row
+    * @param fromRowIndex 0-based index of start: Default value of 0
+    * @returns header + rows
+    */
     export function getNumberOfRows(fromRowIndex = 0): number {
-        return 0 // TODO
+        init();
+
+        if(fromRowIndex <0){
+            fromRowIndex =0;
+        }
+
+        const totalRows = logStorage.length;
+        const countFromOffset = totalRows - fromRowIndex;
+        if(countFromOffset <=0){
+            return 0;
+        }
+        return countFromOffset;
     }
 
+    /**
+    * Get all rows separated by a newline & each column separated by a comma.
+    * Starting at the 0-based index fromRowIndex & counting inclusively until nRows.
+    * @param fromRowIndex 0-based index of start
+    * @param nRows inclusive count from fromRowIndex
+    * @returns String where newlines denote rows & commas denote columns
+    */
     export function getRows(fromRowIndex: number, nRows: number): string {
-        return "" // TODO
+        init();
+        if(fromRowIndex <0){
+            fromRowIndex=0;
+        }
+
+        const totalRows = logStorage.length;
+        if(fromRowIndex >= totalRows || nRows <=0){
+            return "";
+        }
+
+        const rowsToReturn = logStorage.slice(fromRowIndex,fromRowIndex+nRows)
+        return rowsToReturn.join("\n");
     }
 }
