@@ -15,12 +15,11 @@ namespace pxsim.flashlog {
     let mirrorToSerial = false;
     let logSize = 0;
     let committedCols = 0;
+    const logFile = "MY_DATA.HTM";
     /** allocated flash size **/
     const logEnd = 121852;
 
     let lastRunId: string;
-    let logStorage: string[] =[]; //store rows of logged data 
-
     function init() {
         const b = board();
         if (!b) return;
@@ -35,8 +34,7 @@ namespace pxsim.flashlog {
         if (!runtime) return;
         data += "\n";
 
-        logStorage.push(data); // store new row
-
+        board().fileSystem.append(logFile, data);
         /** edge 18 does not support text encoder, so fall back to length **/
         logSize += typeof TextEncoder !== "undefined" ? (new TextEncoder().encode(data)).length : data.length;
         if (logSize >= logEnd) {
@@ -150,10 +148,11 @@ namespace pxsim.flashlog {
 
     function erase() {
         headers = []
-        logStorage = [];
         logSize = 0;
         committedCols = 0;
         currentRow = undefined;
+
+        board().fileSystem.remove(logFile);
         board().serialState.writeCsv("", "clear");
     }
 
@@ -168,7 +167,6 @@ namespace pxsim.flashlog {
         mirrorToSerial = !!enabled;
     }
 
-    
     /**
     * Emulating implementation found in 
     * https://github.com/lancaster-university/codal-microbit-v2/blob/master/source/MicroBitLog.cpp#L1147
@@ -179,12 +177,13 @@ namespace pxsim.flashlog {
     */
     export function getNumberOfRows(fromRowIndex = 0): number {
         init();
-
         if(fromRowIndex <0){
-            fromRowIndex =0;
+            fromRowIndex = 0;
         }
-
-        const totalRows = logStorage.length;
+        let f = board().fileSystem.files[logFile];
+        if (!f) return 0;
+        let rows = f.split("\n");
+        const totalRows = rows.length -1; //fs adds a trailing \n
         const countFromOffset = totalRows - fromRowIndex;
         if(countFromOffset <=0){
             return 0;
@@ -192,7 +191,7 @@ namespace pxsim.flashlog {
         return countFromOffset;
     }
 
-    /**
+    /*
     * Get all rows separated by a newline & each column separated by a comma.
     * Starting at the 0-based index fromRowIndex & counting inclusively until nRows.
     * @param fromRowIndex 0-based index of start
@@ -202,15 +201,18 @@ namespace pxsim.flashlog {
     export function getRows(fromRowIndex: number, nRows: number): string {
         init();
         if(fromRowIndex <0){
-            fromRowIndex=0;
+            fromRowIndex = 0;
         }
+        let f = board().fileSystem.files[logFile];
+        if (!f) return "";
 
-        const totalRows = logStorage.length;
+        let rows = f.split("\n");
+        
+        const totalRows = rows.length -1//fs adds a trailing \n;
         if(fromRowIndex >= totalRows || nRows <=0){
             return "";
         }
 
-        const rowsToReturn = logStorage.slice(fromRowIndex,fromRowIndex+nRows)
-        return rowsToReturn.join("\n");
+        return rows.slice(fromRowIndex,fromRowIndex+nRows).join("\n");
     }
 }
